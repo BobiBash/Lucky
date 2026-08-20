@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	// "strings"
-
 	"charm.land/bubbles/v2/cursor"
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/joho/godotenv"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
@@ -144,9 +145,11 @@ func InitialModel() model {
 
 func CallAPI(m *model, userContent string) tea.Cmd {
 	return func() tea.Msg {
+		godotenv.Load()
+		apiKey := os.Getenv("apiKey")
 		ctx := context.Background()
 		client := openai.NewClient(
-			option.WithAPIKey("sk-e3sypedxyt6qsz1d3zqjq69tzfxx02dqp62mec05u61653e2"),
+			option.WithAPIKey(apiKey),
 			option.WithBaseURL("https://api.xiaomimimo.com/v1"))
 
 		resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
