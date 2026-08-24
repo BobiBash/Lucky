@@ -19,6 +19,13 @@ import (
 	"github.com/openai/openai-go/v3/responses"
 )
 
+const (
+	textAreaHorizontalOverhead = 8
+	viewportVerticalOverhead   = 2
+	InputHorizontalOverhead    = 4
+	InputVerticalOverhead      = 1
+)
+
 type responseMsg struct {
 	Content string
 }
@@ -43,9 +50,9 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.textarea.SetWidth(msg.Width)
-		m.viewport.SetWidth(msg.Width - 2)
-		m.viewport.SetHeight(msg.Height - m.textarea.Height())
+		m.textarea.SetWidth(msg.Width - textAreaHorizontalOverhead)
+		m.viewport.SetWidth(msg.Width)
+		m.viewport.SetHeight(msg.Height - m.textarea.Height() - viewportVerticalOverhead)
 	case responseMsg:
 		m.messages = append(m.messages, Message{Role: "assistant", Content: msg.Content})
 		var content strings.Builder
@@ -100,10 +107,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() tea.View {
 	viewportView := m.viewport.View()
 
-	v := tea.NewView(viewportView + "\n" + m.textarea.View())
+	textareaStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderLeft(true)
+
+	textareaView := textareaStyle.Render(m.textarea.View())
+	centeredTextArea := lipgloss.PlaceHorizontal(m.viewport.Width(), lipgloss.Center, textareaView)
+
+	v := tea.NewView(viewportView + "\n" + centeredTextArea)
 	c := m.textarea.Cursor()
+
 	if c != nil {
-		c.Y += lipgloss.Height(viewportView)
+		c.Y += lipgloss.Height(viewportView) + InputVerticalOverhead
+		c.X += InputHorizontalOverhead
 	}
 	v.Cursor = c
 	v.AltScreen = true
@@ -120,14 +136,20 @@ func main() {
 }
 
 func InitialModel() model {
-	// taStyle := lipgloss.NewStyle().
-	// 	Border(lipgloss.NormalBorder())
+
+	taPromptStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("5"))
 
 	ta := textarea.New()
+
+	taStyle := ta.Styles()
+	taStyle.Focused.Prompt = taPromptStyle
+	ta.SetStyles(taStyle)
 	ta.SetVirtualCursor(false)
 	ta.Focus()
+	ta.ShowLineNumbers = false
 
-	ta.Prompt = "| "
+	ta.Prompt = ""
 	ta.CharLimit = 300
 	// ta.SetStyles(taStyle)
 
