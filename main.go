@@ -42,10 +42,9 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-
 	case tea.WindowSizeMsg:
 		m.textarea.SetWidth(msg.Width)
-		m.viewport.SetWidth(msg.Width)
+		m.viewport.SetWidth(msg.Width - 2)
 		m.viewport.SetHeight(msg.Height - m.textarea.Height())
 	case responseMsg:
 		m.messages = append(m.messages, Message{Role: "assistant", Content: msg.Content})
@@ -55,7 +54,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fmt.Fprintf(&content, "%s\n", msg.Content)
 		}
 
+		m.viewport.GotoBottom()
 		m.viewport.SetContent(content.String())
+		m.viewport.Update(msg)
 		return m, m.textarea.Focus()
 
 	case tea.KeyPressMsg:
@@ -66,13 +67,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			userContent := m.textarea.Value()
 			m.messages = append(m.messages, Message{Role: "user", Content: userContent})
 
-			var firstContent strings.Builder
-			for _, msg := range m.messages {
-				fmt.Fprintf(&firstContent, "%s\n", msg.Content)
-			}
-
-			m.viewport.SetContent(firstContent.String())
-
 			var content strings.Builder
 			for _, msg := range m.messages {
 				fmt.Fprintf(&content, "%s\n", msg.Content)
@@ -80,7 +74,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			m.viewport.SetContent(content.String())
 			m.textarea.Reset()
-			m.viewport.GotoBottom()
 			m.textarea.Blur()
 			return m, CallAPI(&m, userContent)
 
@@ -90,6 +83,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+	case tea.MouseWheelMsg:
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		return m, cmd
 	case cursor.BlinkMsg:
 		var cmd tea.Cmd
 		m.textarea, cmd = m.textarea.Update(msg)
@@ -110,6 +107,7 @@ func (m model) View() tea.View {
 	}
 	v.Cursor = c
 	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
 
 	return v
 }
@@ -122,8 +120,8 @@ func main() {
 }
 
 func InitialModel() model {
-	style := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder())
+	// taStyle := lipgloss.NewStyle().
+	// 	Border(lipgloss.NormalBorder())
 
 	ta := textarea.New()
 	ta.SetVirtualCursor(false)
@@ -131,11 +129,11 @@ func InitialModel() model {
 
 	ta.Prompt = "| "
 	ta.CharLimit = 300
+	// ta.SetStyles(taStyle)
 
 	ta.SetHeight(2)
 
 	vp := viewport.New()
-	vp.Style = style
 
 	return model{
 		textarea: ta,
