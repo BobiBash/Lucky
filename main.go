@@ -18,7 +18,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
-	"github.com/openai/openai-go/v3/responses"
 )
 
 const (
@@ -226,13 +225,20 @@ func CallAPI(m *model, userContent string) tea.Cmd {
 	return func() tea.Msg {
 		godotenv.Load()
 		apiKey := os.Getenv("apiKey")
-		ctx := context.Background()
 		client := openai.NewClient(
 			option.WithAPIKey(apiKey),
 			option.WithBaseURL("https://api.xiaomimimo.com/v1"))
+		personality, err := os.ReadFile("Personality")
 
-		resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
-			Input: responses.ResponseNewParamsInputUnion{OfString: openai.String(userContent)},
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
+			Messages: []openai.ChatCompletionMessageParamUnion{
+				openai.SystemMessage(string(personality)),
+				openai.UserMessage(userContent),
+			},
 			Model: "xiaomi/mimo-v2.5",
 		})
 
@@ -240,7 +246,7 @@ func CallAPI(m *model, userContent string) tea.Cmd {
 			panic(err)
 		}
 
-		return responseMsg{Content: resp.OutputText()}
+		return responseMsg{Content: chatCompletion.Choices[0].Message.Content}
 	}
 
 }
