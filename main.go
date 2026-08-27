@@ -22,9 +22,9 @@ import (
 
 const (
 	textAreaHorizontalOverhead = 6
-	viewportVerticalOverhead   = 1
+	viewportVerticalOverhead   = 5
 	InputHorizontalOverhead    = 4
-	InputVerticalOverhead      = 2
+	InputVerticalOverhead      = 6
 	TimerHorizontalOverhead    = 2
 )
 
@@ -34,18 +34,34 @@ type responseMsg struct {
 	Content string
 }
 
+type CmdMenu struct {
+	Content string
+}
+
 type Message struct {
 	Role    string
 	Content string
 }
 
+type commandItem struct {
+	title string
+	desc  string
+}
+
+func (i commandItem) Title() string       { return i.title }
+func (i commandItem) Description() string { return i.desc }
+func (i commandItem) FilterValue() string { return i.title }
+
 type model struct {
-	textarea textarea.Model
-	viewport viewport.Model
-	messages []Message
-	waiting  bool
-	err      error
-	elapsed  int
+	textarea    textarea.Model
+	viewport    viewport.Model
+	messages    []Message
+	waiting     bool
+	err         error
+	elapsed     int
+	cursor      int
+	commandList []commandItem
+	showMenu    bool
 }
 
 func (m model) Init() tea.Cmd {
@@ -67,6 +83,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.textarea.SetWidth(msg.Width - textAreaHorizontalOverhead)
 		m.viewport.SetWidth(msg.Width)
 		m.viewport.SetHeight(msg.Height - m.textarea.Height() - viewportVerticalOverhead - TimerHorizontalOverhead)
+
 	case responseMsg:
 
 		elapsedDisplayStyle := lipgloss.NewStyle().Faint(true)
@@ -96,7 +113,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, tick()
+
 	case tea.KeyPressMsg:
+		if m.showMenu {
+			switch msg.String() {
+
+			}
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			return m, tea.Quit
@@ -124,6 +148,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			var cmd tea.Cmd
 			m.textarea, cmd = m.textarea.Update(msg)
+			if strings.HasPrefix(m.textarea.Value(), "/") {
+				m.showMenu = true
+			} else {
+				m.showMenu = false
+			}
 			return m, cmd
 		}
 
@@ -166,7 +195,17 @@ func (m model) View() tea.View {
 		timerArea = lipgloss.JoinVertical(lipgloss.Right, timerView, centeredTextArea)
 	}
 
-	v := tea.NewView(viewportView + "\n" + timerArea + centeredTextArea)
+	var cmdMenuArea string
+	if m.showMenu {
+		cmdMenu := m.RenderCommands()
+		cmdMenuArea = lipgloss.JoinVertical(lipgloss.Left, cmdMenu, centeredTextArea)
+	} else {
+		cmdMenu := lipgloss.NewStyle().Height(5)
+		cmdMenuView := cmdMenu.Render()
+		cmdMenuArea = lipgloss.JoinVertical(lipgloss.Left, cmdMenuView, centeredTextArea)
+	}
+
+	v := tea.NewView(viewportView + "\n" + cmdMenuArea + timerArea + centeredTextArea)
 	c := m.textarea.Cursor()
 
 	if c != nil {
@@ -181,6 +220,7 @@ func (m model) View() tea.View {
 }
 
 func main() {
+
 	p := tea.NewProgram(InitialModel())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
@@ -215,9 +255,15 @@ func InitialModel() model {
 
 	vp.Style = vpStyle
 
+	cmds := []commandItem{
+		{title: "/help", desc: "Display all commands."},
+		{title: "/test", desc: "Test command."},
+	}
+
 	return model{
-		textarea: ta,
-		viewport: vp,
+		textarea:    ta,
+		viewport:    vp,
+		commandList: cmds,
 	}
 }
 
@@ -255,4 +301,26 @@ func tick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+// TODO: add keybinds to move through the cmds, make scrollable via slicing(start:end - where end := start + maxVisible)
+func (m model) RenderCommands() string {
+	lines := make([]string, len(m.commandList))
+
+	cmdsStyle := lipgloss.NewStyle().Height(5)
+
+	for index, cmd := range m.commandList {
+		prefix := " "
+
+		if m.cursor == index {
+			prefix = ">"
+		}
+
+		lines[index] = fmt.Sprintf("%s %s %s", prefix, cmd.title, cmd.desc)
+	}
+
+	cmdList := strings.Join(lines, "\n")
+	cmdView := cmdsStyle.Render(cmdList)
+
+	return cmdView
 }
