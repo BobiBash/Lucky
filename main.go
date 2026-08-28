@@ -52,6 +52,11 @@ func (i commandItem) Title() string       { return i.title }
 func (i commandItem) Description() string { return i.desc }
 func (i commandItem) FilterValue() string { return i.title }
 
+type Cursor struct {
+	cursor int
+	start  int
+}
+
 type model struct {
 	textarea    textarea.Model
 	viewport    viewport.Model
@@ -59,7 +64,7 @@ type model struct {
 	waiting     bool
 	err         error
 	elapsed     int
-	cursor      int
+	cursor      Cursor
 	commandList []commandItem
 	showMenu    bool
 }
@@ -71,6 +76,7 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// var cmd []tea.Cmd
+	maxVisible := 8
 
 	userStyle := lipgloss.NewStyle().
 		Background(lipgloss.Black).
@@ -118,18 +124,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.showMenu {
 			switch msg.String() {
 			case "up":
-				if m.cursor == 0 {
-					m.cursor = len(m.commandList) - 1
-				} else {
-					m.cursor--
+				if m.cursor.cursor < len(m.commandList)-1 {
+					m.cursor.cursor++
+					// ONLY move start if cursor steps BEYOND the bottom edge
+					if m.cursor.cursor >= m.cursor.start+maxVisible {
+						m.cursor.start = m.cursor.cursor - maxVisible + 1
+					}
 				}
+				return m, nil
 			case "down":
-
-				if m.cursor == len(m.commandList)-1 {
-					m.cursor = 0
-				} else {
-					m.cursor++
+				if m.cursor.cursor > 0 {
+					m.cursor.cursor--
+					// ONLY move start if cursor steps BEYOND the top edge
+					if m.cursor.cursor < m.cursor.start {
+						m.cursor.start = m.cursor.cursor
+					}
 				}
+				return m, nil
 			}
 		}
 
@@ -345,26 +356,18 @@ func (m model) RenderCommands() string {
 	for index, cmd := range m.commandList {
 		prefix := " "
 
-		if m.cursor == index {
+		if m.cursor.cursor == index {
 			prefix = ">"
 		}
 
 		lines[index] = fmt.Sprintf("%s %s %s", prefix, cmd.title, cmd.desc)
 	}
 
-	maxVisibility := 8
-	start := 0
-	maxStart := len(m.commandList) - maxVisibility
+	const maxVisible = 8
+	// Read the persistent start from model
+	end := min(m.cursor.start+maxVisible, len(m.commandList))
 
-	if m.cursor >= maxVisibility {
-		start = m.cursor - maxVisibility + 1
-	}
-
-	start = max(0, start)
-	start = min(start, maxStart)
-	end := min(start+maxVisibility, len(lines))
-
-	cmdSlice := lines[start:end]
+	cmdSlice := lines[m.cursor.start:end]
 	cmdList := strings.Join(cmdSlice, "\n")
 	cmdView := cmdsStyle.Render(cmdList)
 
