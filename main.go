@@ -117,7 +117,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		if m.showMenu {
 			switch msg.String() {
+			case "up":
+				if m.cursor == 0 {
+					m.cursor = len(m.commandList) - 1
+				} else {
+					m.cursor--
+				}
+			case "down":
 
+				if m.cursor == len(m.commandList)-1 {
+					m.cursor = 0
+				} else {
+					m.cursor++
+				}
 			}
 		}
 
@@ -143,7 +155,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.Reset()
 			m.textarea.Blur()
 			m.waiting = true
-			return m, tea.Batch(CallAPI(&m, userContent), tick())
+			return m, tea.Batch(CallAPI(m, userContent), tick())
 
 		default:
 			var cmd tea.Cmd
@@ -257,7 +269,28 @@ func InitialModel() model {
 
 	cmds := []commandItem{
 		{title: "/help", desc: "Display all commands."},
-		{title: "/test", desc: "Test command."},
+		{title: "/test", desc: "Test command1."},
+
+		{title: "/test", desc: "Test command2."},
+
+		{title: "/test", desc: "Test command3."},
+		{title: "/test", desc: "Test command4."},
+		{title: "/test", desc: "Test command5."},
+		{title: "/test", desc: "Test command6a."},
+		{title: "/test", desc: "Test command7."},
+		{title: "/test", desc: "Test command8."},
+		{title: "/test", desc: "Test command9."},
+		{title: "/test", desc: "Test command10."},
+		{title: "/test", desc: "Test command11."},
+
+		{title: "/test", desc: "Test command12."},
+		{title: "/test", desc: "Test command13."},
+		{title: "/test", desc: "Test command14."},
+		{title: "/test", desc: "Test command15."},
+		{title: "/test", desc: "Test command16."},
+		{title: "/test", desc: "Test command17."},
+		{title: "/test", desc: "Test command18."},
+		{title: "/test", desc: "Test command19."},
 	}
 
 	return model{
@@ -267,7 +300,7 @@ func InitialModel() model {
 	}
 }
 
-func CallAPI(m *model, userContent string) tea.Cmd {
+func CallAPI(m model, userContent string) tea.Cmd {
 	return func() tea.Msg {
 		godotenv.Load()
 		apiKey := os.Getenv("apiKey")
@@ -307,7 +340,7 @@ func tick() tea.Cmd {
 func (m model) RenderCommands() string {
 	lines := make([]string, len(m.commandList))
 
-	cmdsStyle := lipgloss.NewStyle().Height(5)
+	cmdsStyle := lipgloss.NewStyle().Height(8)
 
 	for index, cmd := range m.commandList {
 		prefix := " "
@@ -319,7 +352,20 @@ func (m model) RenderCommands() string {
 		lines[index] = fmt.Sprintf("%s %s %s", prefix, cmd.title, cmd.desc)
 	}
 
-	cmdList := strings.Join(lines, "\n")
+	maxVisibility := 8
+	start := 0
+	maxStart := len(m.commandList) - maxVisibility
+
+	if m.cursor >= maxVisibility {
+		start = m.cursor - maxVisibility + 1
+	}
+
+	start = max(0, start)
+	start = min(start, maxStart)
+	end := min(start+maxVisibility, len(lines))
+
+	cmdSlice := lines[start:end]
+	cmdList := strings.Join(cmdSlice, "\n")
 	cmdView := cmdsStyle.Render(cmdList)
 
 	return cmdView
