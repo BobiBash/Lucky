@@ -22,9 +22,9 @@ import (
 
 const (
 	textAreaHorizontalOverhead = 6
-	viewportVerticalOverhead   = 5
+	viewportVerticalOverhead   = 8
 	InputHorizontalOverhead    = 4
-	InputVerticalOverhead      = 6
+	InputVerticalOverhead      = 9
 	TimerHorizontalOverhead    = 2
 )
 
@@ -124,20 +124,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.showMenu {
 			switch msg.String() {
 			case "up":
-				if m.cursor.cursor < len(m.commandList)-1 {
-					m.cursor.cursor++
-					// ONLY move start if cursor steps BEYOND the bottom edge
-					if m.cursor.cursor >= m.cursor.start+maxVisible {
-						m.cursor.start = m.cursor.cursor - maxVisible + 1
+				
+				if m.cursor.cursor <= 0 {
+					m.cursor.cursor = len(m.commandList)
+					m.cursor.start = len(m.commandList) - maxVisible
+				}
+
+				if m.cursor.cursor > 0 {
+					m.cursor.cursor--
+					if m.cursor.cursor < m.cursor.start + 4 {
+						if m.cursor.start > 0 {
+							m.cursor.start--
+						}
 					}
 				}
 				return m, nil
 			case "down":
-				if m.cursor.cursor > 0 {
-					m.cursor.cursor--
-					// ONLY move start if cursor steps BEYOND the top edge
-					if m.cursor.cursor < m.cursor.start {
-						m.cursor.start = m.cursor.cursor
+
+				if m.cursor.cursor >= len(m.commandList) - 1 {
+					m.cursor.cursor = -1
+					m.cursor.start = 0
+				}
+
+				if m.cursor.cursor < len(m.commandList)-1 {
+					m.cursor.cursor++
+					if m.cursor.cursor > 3 && m.cursor.start < len(m.commandList) - maxVisible {
+						m.cursor.start++
 					}
 				}
 				return m, nil
@@ -223,7 +235,7 @@ func (m model) View() tea.View {
 		cmdMenu := m.RenderCommands()
 		cmdMenuArea = lipgloss.JoinVertical(lipgloss.Left, cmdMenu, centeredTextArea)
 	} else {
-		cmdMenu := lipgloss.NewStyle().Height(5)
+		cmdMenu := lipgloss.NewStyle().Height(8)
 		cmdMenuView := cmdMenu.Render()
 		cmdMenuArea = lipgloss.JoinVertical(lipgloss.Left, cmdMenuView, centeredTextArea)
 	}
@@ -351,7 +363,7 @@ func tick() tea.Cmd {
 func (m model) RenderCommands() string {
 	lines := make([]string, len(m.commandList))
 
-	cmdsStyle := lipgloss.NewStyle().Height(8)
+	cmdsStyle := lipgloss.NewStyle().Height(8).MarginLeft(1)
 
 	for index, cmd := range m.commandList {
 		prefix := " "
@@ -365,7 +377,9 @@ func (m model) RenderCommands() string {
 
 	const maxVisible = 8
 	// Read the persistent start from model
-	end := min(m.cursor.start+maxVisible, len(m.commandList))
+	// start := m.cursor.start
+	// start = max(0, len(m.commandList) - 5)
+	end := min(m.cursor.start + maxVisible, len(m.commandList))
 
 	cmdSlice := lines[m.cursor.start:end]
 	cmdList := strings.Join(cmdSlice, "\n")
