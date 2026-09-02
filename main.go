@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -83,6 +84,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		MarginBottom(1).
 		Width(m.textarea.Width()).
 		Padding(1, 0, 1, 1)
+
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -255,6 +257,19 @@ func (m model) View() tea.View {
 }
 
 func main() {
+
+	path, err := getConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cfgpath := filepath.Join(path, "config.toml")
+
+	cfg, err := readConfig(cfgpath)
+
+	if err != nil || cfg.ApiKey == "" {
+		Setup()
+	}
 
 	p := tea.NewProgram(InitialModel())
 	if _, err := p.Run(); err != nil {
