@@ -20,7 +20,7 @@ type Config struct {
 	ApiKey  string `toml:"api_key"`
 }
 
-func Setup() Config {
+func Setup() {
 
 	path, err := getConfig()
 	if err != nil {
@@ -29,33 +29,25 @@ func Setup() Config {
 
 	cfgPath := filepath.Join(path, "config.toml")
 
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "config":
-			OpenChosenFile(cfgPath)
-		case "setup":
-			if FileExists(cfgPath) {
+	if !FileExists(cfgPath) {
+		SetupConfig()
+	} else {
+
+		if len(os.Args) > 1 {
+			switch os.Args[1] {
+			case "config":
 				OpenChosenFile(cfgPath)
-			} else {
-				data := SetupConfig()
-				writeConfig(path, data)
+			case "setup":
+				if FileExists(cfgPath) {
+					OpenChosenFile(cfgPath)
+				} else {
+					data := SetupConfig()
+					writeConfig(path, data)
+				}
 			}
 		}
 	}
-}
 
-func FileExists(path string) bool {
-	_, err := os.Stat(path)
-
-	if err == nil {
-		return true
-	}
-
-	if errors.Is(err, os.ErrNotExist) {
-		return false
-	}
-
-	return false
 }
 
 func SetupConfig() Config {
@@ -65,7 +57,7 @@ func SetupConfig() Config {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
-		fmt.Println("Enter your ApiKey: ")
+		fmt.Print("Enter your ApiKey: ")
 		if scanner.Scan() {
 			apiKey = strings.TrimSpace(scanner.Text())
 			if apiKey != "" {
@@ -81,15 +73,28 @@ func SetupConfig() Config {
 
 	key := fmt.Sprintf("APIKEY=%s", apiKey)
 
-	fmt.Println("Enter BaseURL [default: https://api.xiaomimimo.com/v1]: ")
+	fmt.Print("Enter BaseURL [default: https://api.xiaomimimo.com/v1]: ")
 	fmt.Scan(&BaseUrl)
 
-	fmt.Println("Enter Model [default: xiaomi/mimo-v2.5]: ")
+	fmt.Print("Enter Model [default: xiaomi/mimo-v2.5]: ")
 	fmt.Scan(&Model)
 
 	return Config{Model: Model, BaseUrl: BaseUrl, ApiKey: key}
 }
 
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+
+	if err == nil {
+		return true
+	}
+
+	if errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+
+	return false
+}
 func getConfig() (string, error) {
 	config, err := os.UserConfigDir()
 
@@ -124,7 +129,13 @@ func writeConfig(path string, data Config) error {
 func readConfig(path string) (Config, error) {
 	var cfg Config
 	newPath := filepath.Join(path, "config.toml")
-	toml.DecodeFile(newPath, &cfg)
+	meta, err := toml.DecodeFile(newPath, &cfg)
+	if len(meta.Keys()) == 0 {
+		return cfg, fmt.Errorf("Config file is empty.")
+	}
+	if err != nil {
+		return cfg, err
+	}
 	return cfg, nil
 }
 

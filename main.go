@@ -16,7 +16,6 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/joho/godotenv"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
@@ -68,6 +67,9 @@ type model struct {
 	cursor      Cursor
 	commandList []commandItem
 	showMenu    bool
+	cfg         Config
+	client      openai.Client
+	personality string
 }
 
 func (m model) Init() tea.Cmd {
@@ -258,6 +260,14 @@ func (m model) View() tea.View {
 
 func main() {
 
+	p := tea.NewProgram(InitialModel())
+	if _, err := p.Run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func InitialModel() model {
+
 	path, err := getConfig()
 	if err != nil {
 		log.Fatal(err)
@@ -267,17 +277,13 @@ func main() {
 
 	cfg, err := readConfig(cfgpath)
 
-	if err != nil || cfg.ApiKey == "" {
+	if err != nil {
 		Setup()
 	}
-
-	p := tea.NewProgram(InitialModel())
-	if _, err := p.Run(); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func InitialModel() model {
+	client := openai.NewClient(
+		option.WithAPIKey(cfg.ApiKey),
+		option.WithBaseURL(cfg.BaseUrl))
+	personality, err := os.ReadFile("Personality")
 
 	taPromptStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("5"))
@@ -332,6 +338,9 @@ func InitialModel() model {
 	}
 
 	return model{
+		personality: string(personality),
+		client:      client,
+		cfg:         cfg,
 		textarea:    ta,
 		viewport:    vp,
 		commandList: cmds,
@@ -340,27 +349,17 @@ func InitialModel() model {
 
 func CallAPI(m model, userContent string) tea.Cmd {
 	return func() tea.Msg {
-		godotenv.Load()
-		apiKey := os.Getenv("apiKey")
-		client := openai.NewClient(
-			option.WithAPIKey(apiKey),
-			option.WithBaseURL("https://api.xiaomimimo.com/v1"))
-		personality, err := os.ReadFile("Personality")
 
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
+		chatCompletion, err := m.client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
 			Messages: []openai.ChatCompletionMessageParamUnion{
-				openai.SystemMessage(string(personality)),
+				openai.SystemMessage(string(m.personality)),
 				openai.UserMessage(userContent),
 			},
-			Model: "xiaomi/mimo-v2.5",
+			Model: m.cfg.Model,
 		})
 
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 
 		return responseMsg{Content: chatCompletion.Choices[0].Message.Content}
