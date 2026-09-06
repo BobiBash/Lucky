@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/BurntSushi/toml"
+	"github.com/pelletier/go-toml/v2"
 	"log"
 	"os"
 	"os/exec"
@@ -30,7 +30,8 @@ func Setup() {
 	cfgPath := filepath.Join(path, "config.toml")
 
 	if !FileExists(cfgPath) {
-		SetupConfig()
+		cfg := SetupConfig()
+		writeConfig(cfgPath, cfg)
 	} else {
 
 		if len(os.Args) > 1 {
@@ -51,35 +52,40 @@ func Setup() {
 }
 
 func SetupConfig() Config {
-	var apiKey string
-	BaseUrl := "https://api.xiaomimimo.com/v1"
-	Model := "xiaomi/mimo-v2.5"
+
 	scanner := bufio.NewScanner(os.Stdin)
 
-	for {
-		fmt.Print("Enter your ApiKey: ")
-		if scanner.Scan() {
-			apiKey = strings.TrimSpace(scanner.Text())
-			if apiKey != "" {
-				break
-			}
-			fmt.Println("Please enter a valid APIKEY")
-		}
+	default_url := "https://api.xiaomimimo.com/v1"
+	default_model := "xiaomi/mimo-v2.5"
+
+	key := readLine(scanner, "Enter ApiKey: ")
+	url := readLine(scanner, "Enter BaseURL [default: https://api.xiaomimimo.com/v1]: ")
+	model := readLine(scanner, "Enter Model [xiaomi/mimo-v2.5]: ")
+
+	if url == "" {
+		url = default_url
+	}
+
+	if model == "" {
+		model = default_model
+	}
+
+	return Config{Model: model, BaseUrl: url, ApiKey: key}
+}
+
+func readLine(scanner *bufio.Scanner, prompt string) string {
+
+	fmt.Print(prompt)
+
+	for scanner.Scan() {
+		return strings.TrimSpace(scanner.Text())
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
 	}
 
-	key := fmt.Sprintf("APIKEY=%s", apiKey)
-
-	fmt.Print("Enter BaseURL [default: https://api.xiaomimimo.com/v1]: ")
-	fmt.Scan(&BaseUrl)
-
-	fmt.Print("Enter Model [default: xiaomi/mimo-v2.5]: ")
-	fmt.Scan(&Model)
-
-	return Config{Model: Model, BaseUrl: BaseUrl, ApiKey: key}
+	return ""
 }
 
 func FileExists(path string) bool {
@@ -114,11 +120,10 @@ func getConfig() (string, error) {
 }
 
 func writeConfig(path string, data Config) error {
-	newPath := filepath.Join(path, "config.toml")
-	file, err := os.OpenFile(newPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	file, err := os.Create(path)
 
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Sprintf("Error creating file %v", err))
 	}
 
 	defer file.Close()
@@ -126,17 +131,18 @@ func writeConfig(path string, data Config) error {
 	return toml.NewEncoder(file).Encode(data)
 }
 
-func readConfig(path string) (Config, error) {
+func loadConfig(path string) (Config, error) {
 	var cfg Config
 	newPath := filepath.Join(path, "config.toml")
-	meta, err := toml.DecodeFile(newPath, &cfg)
-	if len(meta.Keys()) == 0 {
-		return cfg, fmt.Errorf("Config file is empty.")
-	}
+	file, err := os.Open(newPath)
 	if err != nil {
 		return cfg, err
 	}
-	return cfg, nil
+
+	defer file.Close()
+
+	err = toml.NewDecoder(file).Decode(&cfg)
+	return cfg, err
 }
 
 func OpenChosenFile(path string) error {

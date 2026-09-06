@@ -6,9 +6,8 @@ require (
 	charm.land/bubbles/v2 v2.1.1
 	charm.land/bubbletea/v2 v2.0.8
 	charm.land/lipgloss/v2 v2.0.4
-	github.com/BurntSushi/toml v1.6.0
-	github.com/joho/godotenv v1.5.1
 	github.com/openai/openai-go/v3 v3.52.0
+	github.com/pelletier/go-toml/v2 v2.4.3
 )
 
 require (

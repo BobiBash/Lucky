@@ -1,0 +1,24 @@
+Caught panic:
+
+Error with callapi Post "/chat/completions": unsupported protocol scheme ""
+
+Restoring terminal...
+
+goroutine 21 [running]:
+runtime/debug.Stack()
+	/usr/lib/golang/src/runtime/debug/stack.go:26 +0x5e
+charm.land/bubbletea/v2.(*Program).recoverFromGoPanic(0xc74af494b40, {0x9f8d80, 0xc74af3ea1d0})
+	/home/hoppa/go/pkg/mod/charm.land/bubbletea/v2@v2.0.8/tea.go:1304 +0x151
+charm.land/bubbletea/v2.(*Program).execBatchMsg.func2.1()
+	/home/hoppa/go/pkg/mod/charm.land/bubbletea/v2@v2.0.8/tea.go:940 +0x35
+panic({0x9f8d80?, 0xc74af3ea1d0?})
+	/usr/lib/golang/src/runtime/panic.go:860 +0x13a
+main.model.Update.CallAPI.func2()
+	/home/hoppa/Vs Code/Deepseek-TUI-with-go/main.go:362 +0x3be
+charm.land/bubbletea/v2.(*Program).execBatchMsg.func2()
+	/home/hoppa/go/pkg/mod/charm.land/bubbletea/v2@v2.0.8/tea.go:945 +0xac
+created by charm.land/bubbletea/v2.(*Program).execBatchMsg in goroutine 20
+	/home/hoppa/go/pkg/mod/charm.land/bubbletea/v2@v2.0.8/tea.go:934 +0x106
+
+2026/09/06 13:55:45 program was killed: program experienced a panic
+exit status 1

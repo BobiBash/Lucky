@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -128,7 +127,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.showMenu {
 			switch msg.String() {
 			case "up":
-				
+
 				if m.cursor.cursor <= 0 {
 					m.cursor.cursor = len(m.commandList)
 					m.cursor.start = len(m.commandList) - maxVisible
@@ -136,7 +135,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				if m.cursor.cursor > 0 {
 					m.cursor.cursor--
-					if m.cursor.cursor < m.cursor.start + 4 {
+					if m.cursor.cursor < m.cursor.start+4 {
 						if m.cursor.start > 0 {
 							m.cursor.start--
 						}
@@ -145,14 +144,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "down":
 
-				if m.cursor.cursor >= len(m.commandList) - 1 {
+				if m.cursor.cursor >= len(m.commandList)-1 {
 					m.cursor.cursor = -1
 					m.cursor.start = 0
 				}
 
 				if m.cursor.cursor < len(m.commandList)-1 {
 					m.cursor.cursor++
-					if m.cursor.cursor > 3 && m.cursor.start < len(m.commandList) - maxVisible {
+					if m.cursor.cursor > 3 && m.cursor.start < len(m.commandList)-maxVisible {
 						m.cursor.start++
 					}
 				}
@@ -273,12 +272,14 @@ func InitialModel() model {
 		log.Fatal(err)
 	}
 
-	cfgpath := filepath.Join(path, "config.toml")
-
-	cfg, err := readConfig(cfgpath)
+	cfg, err := loadConfig(path)
 
 	if err != nil {
 		Setup()
+		cfg, err = loadConfig(path)
+		if err != nil {
+			log.Fatalf("Error loading config: %v", err)
+		}
 	}
 	client := openai.NewClient(
 		option.WithAPIKey(cfg.ApiKey),
@@ -359,7 +360,7 @@ func CallAPI(m model, userContent string) tea.Cmd {
 		})
 
 		if err != nil {
-			log.Fatal(err)
+			panic(fmt.Sprintf("Error with callapi %v", err))
 		}
 
 		return responseMsg{Content: chatCompletion.Choices[0].Message.Content}
@@ -393,7 +394,7 @@ func (m model) RenderCommands() string {
 	// Read the persistent start from model
 	// start := m.cursor.start
 	// start = max(0, len(m.commandList) - 5)
-	end := min(m.cursor.start + maxVisible, len(m.commandList))
+	end := min(m.cursor.start+maxVisible, len(m.commandList))
 
 	cmdSlice := lines[m.cursor.start:end]
 	cmdList := strings.Join(cmdSlice, "\n")
