@@ -21,9 +21,9 @@ import (
 
 const (
 	textAreaHorizontalOverhead = 6
-	viewportVerticalOverhead   = 8
+	viewportVerticalOverhead   = 3
 	InputHorizontalOverhead    = 4
-	InputVerticalOverhead      = 9
+	InputVerticalOverhead      = 2
 	TimerHorizontalOverhead    = 2
 )
 
@@ -57,18 +57,19 @@ type Cursor struct {
 }
 
 type model struct {
-	textarea    textarea.Model
-	viewport    viewport.Model
-	messages    []Message
-	waiting     bool
-	err         error
-	elapsed     int
-	cursor      Cursor
-	commandList []commandItem
-	showMenu    bool
-	cfg         Config
-	client      openai.Client
-	personality string
+	baseViewPortHeight int
+	textarea           textarea.Model
+	viewport           viewport.Model
+	messages           []Message
+	waiting            bool
+	err                error
+	elapsed            int
+	cursor             Cursor
+	commandList        []commandItem
+	showMenu           bool
+	cfg                Config
+	client             openai.Client
+	personality        string
 }
 
 func (m model) Init() tea.Cmd {
@@ -80,6 +81,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// var cmd []tea.Cmd
 	maxVisible := 8
 
+	// User msg style
 	userStyle := lipgloss.NewStyle().
 		Background(lipgloss.Black).
 		MarginBottom(1).
@@ -88,14 +90,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 
+	// Initial window size and resizing
 	case tea.WindowSizeMsg:
 		m.textarea.SetWidth(msg.Width - textAreaHorizontalOverhead)
 		m.viewport.SetWidth(msg.Width)
-		m.viewport.SetHeight(msg.Height - m.textarea.Height() - viewportVerticalOverhead - TimerHorizontalOverhead)
+		m.baseViewPortHeight = msg.Height - m.textarea.Height() - viewportVerticalOverhead
+		m.viewport.SetHeight(m.baseViewPortHeight)
 
+	// Response message by the AI
 	case responseMsg:
 
-		elapsedDisplayStyle := lipgloss.NewStyle().Faint(true)
+		elapsedDisplayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 
 		timeElapsed := elapsedDisplayStyle.Render(fmt.Sprintf("Time elapsed: %s", strconv.Itoa(m.elapsed)))
 		m.messages = append(m.messages, Message{Role: "assistant", Content: msg.Content + "\n" + timeElapsed})
@@ -116,6 +121,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.waiting = false
 		return m, m.textarea.Focus()
 
+	// Timer
 	case tickMsg:
 		m.elapsed += 1
 		if !m.waiting {
@@ -123,7 +129,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tick()
 
+	// Keypresses
 	case tea.KeyPressMsg:
+		// Cmd Menu keypresses
 		if m.showMenu {
 			switch msg.String() {
 			case "up":
@@ -188,8 +196,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea, cmd = m.textarea.Update(msg)
 			if strings.HasPrefix(m.textarea.Value(), "/") {
 				m.showMenu = true
+				m.viewport.SetHeight(m.baseViewPortHeight - 7)
 			} else {
 				m.showMenu = false
+				m.viewport.SetHeight(m.baseViewPortHeight)
 			}
 			return m, cmd
 		}
@@ -209,8 +219,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() tea.View {
-	var timerArea string
-	viewportView := m.viewport.View()
 
 	textareaStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder())
@@ -219,36 +227,43 @@ func (m model) View() tea.View {
 
 	centeredTextArea := lipgloss.PlaceHorizontal(m.viewport.Width(), lipgloss.Center, textareaView)
 
+	// Timer View
+	var timerView string
+
 	if m.waiting {
 		timerStyle := lipgloss.NewStyle().
 			MarginRight(3)
 
 		timer := fmt.Sprintf("%s seconds", strconv.Itoa(m.elapsed))
-		timerView := timerStyle.Render(timer)
+		timerView = timerStyle.Render(timer)
 
-		timerArea = lipgloss.JoinVertical(lipgloss.Right, timerView, centeredTextArea)
 	} else {
 		timerStyle := lipgloss.NewStyle().Height(1)
-		timerView := timerStyle.Render()
-		timerArea = lipgloss.JoinVertical(lipgloss.Right, timerView, centeredTextArea)
+		timerView = timerStyle.Render()
 	}
 
+	// Commands Menu
 	var cmdMenuArea string
+
 	if m.showMenu {
-		cmdMenu := m.RenderCommands()
-		cmdMenuArea = lipgloss.JoinVertical(lipgloss.Left, cmdMenu, centeredTextArea)
-	} else {
-		cmdMenu := lipgloss.NewStyle().Height(8)
-		cmdMenuView := cmdMenu.Render()
-		cmdMenuArea = lipgloss.JoinVertical(lipgloss.Left, cmdMenuView, centeredTextArea)
+		cmdMenuArea = lipgloss.NewStyle().Render(m.RenderCommands())
 	}
 
-	v := tea.NewView(viewportView + "\n" + cmdMenuArea + timerArea + centeredTextArea)
+	InputSection := lipgloss.JoinVertical(lipgloss.Right, timerView, centeredTextArea)
+
+	viewportView := m.viewport.View()
+	v := tea.NewView(viewportView + "\n" + cmdMenuArea + InputSection)
 	c := m.textarea.Cursor()
 
+	// cursor positioning
 	if c != nil {
-		c.Y += lipgloss.Height(viewportView) + InputVerticalOverhead
-		c.X += InputHorizontalOverhead
+		cmdMenuVerticalOverhead := 7
+		if m.showMenu {
+			c.Y += lipgloss.Height(viewportView) + InputVerticalOverhead + cmdMenuVerticalOverhead
+		} else {
+			c.Y += lipgloss.Height(viewportView) + InputVerticalOverhead
+		}
+		c.X += InputHorizontalOverhead - 1
 	}
 	v.Cursor = c
 	v.AltScreen = true
@@ -378,16 +393,23 @@ func tick() tea.Cmd {
 func (m model) RenderCommands() string {
 	lines := make([]string, len(m.commandList))
 
+	var lineTitleStyle lipgloss.Style
+	var lineDescStyle lipgloss.Style
 	cmdsStyle := lipgloss.NewStyle().Height(8).MarginLeft(1)
 
 	for index, cmd := range m.commandList {
 		prefix := " "
+		lineTitleStyle = lipgloss.NewStyle()
+		lineDescStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 
 		if m.cursor.cursor == index {
 			prefix = ">"
-		}
+			lineTitleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#1E81E8"))
 
-		lines[index] = fmt.Sprintf("%s %s %s", prefix, cmd.title, cmd.desc)
+		}
+		title := lineTitleStyle.Render(fmt.Sprintf("%s %s  ", prefix, cmd.title))
+		desc := lineDescStyle.Render(fmt.Sprintf("%s", cmd.desc))
+		lines[index] = title + desc
 	}
 
 	const maxVisible = 8
