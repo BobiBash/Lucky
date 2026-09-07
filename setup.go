@@ -32,23 +32,49 @@ func Setup() {
 	if !FileExists(cfgPath) {
 		cfg := SetupConfig()
 		writeConfig(cfgPath, cfg)
-	} else {
+	}
+}
 
-		if len(os.Args) > 1 {
-			switch os.Args[1] {
-			case "config":
+func CheckConfig(path string) Config {
+	cfg, err := loadConfig(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if cfg.BaseUrl == "" {
+		cfg.BaseUrl = "https://api.xiaomimimo.com/v1"
+	}
+
+	if cfg.Model == "" {
+		cfg.Model = "xiaomi/mimo-v2.5"
+	}
+
+	return cfg
+}
+
+func CLI() {
+	path, err := getConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cfgPath := filepath.Join(path, "config.toml")
+
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "config":
+			OpenChosenFile(cfgPath)
+		case "setup":
+			if FileExists(cfgPath) {
 				OpenChosenFile(cfgPath)
-			case "setup":
-				if FileExists(cfgPath) {
-					OpenChosenFile(cfgPath)
-				} else {
-					data := SetupConfig()
-					writeConfig(path, data)
-				}
+			} else {
+				data := SetupConfig()
+				writeConfig(path, data)
 			}
 		}
 	}
 
+	os.Exit(0)
 }
 
 func SetupConfig() Config {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -282,20 +283,28 @@ func main() {
 
 func InitialModel() model {
 
+	var cfg Config
+
 	path, err := getConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	cfg, err := loadConfig(path)
-
-	if err != nil {
-		Setup()
+	if len(os.Args) > 1 {
+		CLI()
+	} else {
 		cfg, err = loadConfig(path)
+
 		if err != nil {
-			log.Fatalf("Error loading config: %v", err)
+			Setup()
+			cfg, err = loadConfig(path)
+			if err != nil {
+				log.Fatalf("Error loading config: %v", err)
+			}
 		}
 	}
+
+	cfg = CheckConfig(path)
+
 	client := openai.NewClient(
 		option.WithAPIKey(cfg.ApiKey),
 		option.WithBaseURL(cfg.BaseUrl))
@@ -375,7 +384,12 @@ func CallAPI(m model, userContent string) tea.Cmd {
 		})
 
 		if err != nil {
-			panic(fmt.Sprintf("Error with callapi %v", err))
+			var ApiError *openai.Error
+
+			if errors.As(err, &ApiError) {
+				return responseMsg{Content: fmt.Sprintf("Error: %v", ApiError.Message)}
+			}
+			return responseMsg{Content: fmt.Sprintf("Error: %v", err)}
 		}
 
 		return responseMsg{Content: chatCompletion.Choices[0].Message.Content}
